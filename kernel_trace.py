@@ -4,7 +4,7 @@ import sys
 import subprocess
 
 def usage():
-    print "./kernel_trace.py cmd <reset | start | stop | save>"
+    print "./kernel_trace.py [cmd]\n"
     print "cmd: "
     print "\treset \tclear /var/log/messages and /sys/kernel/debug/tracing/trace"
     print "\tstart \tstart trace and kvm dbg log"
@@ -18,7 +18,6 @@ def main(argv=None):
         sys.exit()
 
     cmd_str = sys.argv[1]
-
 
     cmd = ""
     if (cmd_str == "reset"):
@@ -52,7 +51,7 @@ def main(argv=None):
         subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 
     elif (cmd_str == "stop"):
-        print "[INFO]  stop\n"
+        print "[INFO]  stop kernel trace and kvm dbg messsage\n"
 
         # stop kernel log message
         cmd = "echo N > /sys/module/kvm/parameters/dbg"
