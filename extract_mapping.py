@@ -4,13 +4,14 @@ import sys
 import subprocess
 
 def usage():
-    print "Usage: ./extrat_mapping.py <-m> <input file> <output file>\n"
+    print "Usage: ./extrat_mapping.py <-m mapping file> <input file> <output file>\n"
     print "Extract the gva to hpa mapping in the input file."
     print "The input lines:  mapping: gva ffff88007b44a570, spte 8000000621bad263"
     print "The output lines: 7fa882912000,59f13f\n"
 
-    print "-m\t\t mapping file. If not present, extract all the mappings"
+    print "-m\t\tmapping file (/proc/[pid]/maps). If not present,\n\t\textract all the mappings"
 
+# Mapping data structure extracted from /proc/[pid]/maps
 class Mapping:
     def __init__(self, addr_start, addr_end, perms, offset, dev, inode,
                  pathname):
@@ -37,7 +38,7 @@ def get_mappings_from_file(mappings, m_filename):
     map_file = open(m_filename, 'r')
 
     for line in map_file:
-        print line
+        # print line
         words = line.split();
         # get vaddress start and end
         address = words[0].split('-')
@@ -52,19 +53,39 @@ def get_mappings_from_file(mappings, m_filename):
         mappings.append(map)
         # break
 
+    map_file.close()
+
+# check if gva  in the mappings range. mapping is all user space virtual
+# addresses
+def gva_in_range(gva, mappings):
+    rc = False
+    gva_int64 = int(gva, 16)
+
+    print gva_int64
     print "start, end (range), perms, offset, dev, inode, pathname"
     for map in mappings:
         map.output()
 
-    map_file.close()
+        if (gva_int64 >= map.addr_start) and (gva_int64 <= map.addr_end) and (map.range >= 8096):
+            rc = True
+            break
 
+    return rc
 
-def extract_line(line=""):
+#
+# Process each line in the message file and
+# return the output line as 
+#
+# Input line is based on the kernel messages
+#
+# Each output line is gva,hpa
+#
+def extract_line(line, mappings):
 
     extracted_line = ""
     gva = ""
     hpa = ""
-    spte = ""
+
     if (line.find("mapping") >= 0):
         print line
         
@@ -80,7 +101,6 @@ def extract_line(line=""):
         gva = line[index_start:index_end]
         print "gva: " + gva
 
-
         # extract hpa
         index_start = line.find("spte", index_end) + 5
         # print "start " + str(index_start)
@@ -94,7 +114,8 @@ def extract_line(line=""):
         hpa = line[index_start:index_end]
         print "hpa: " + hpa
 
-        extracted_line = gva + "," + hpa
+        if (gva_in_range(gva, mappings)):
+            extracted_line = gva + "," + hpa
     
     print extracted_line
     return extracted_line
@@ -106,6 +127,9 @@ def main(argv=None):
         sys.exit()
 
     if (sys.argv[1] == "-m"):
+        if (len(sys.argv) < 5):
+            usage()
+            sys.exit()
         m_filename = sys.argv[2]
         i_filename = sys.argv[3]
         o_filename = sys.argv[4]
@@ -124,19 +148,29 @@ def main(argv=None):
     else:
         print "Extracting mappings"
         get_mappings_from_file(mappings, m_filename)
-    sys.exit()
 
-    # read each line of the input file
+    print "start, end (range), perms, offset, dev, inode, pathname"
+    for map in mappings:
+        map.output()
+    # sys.exit()
+
+    # read each line of the input kernel message file
     in_file = open(i_filename, 'r')
     output_file = open(o_filename, 'w')
 
     for line in in_file:
-        output_line = extract_line(line) + "\n"
+        output_line = extract_line(line, mappings)
         print output_line
-        output_file.write(output_line)
+        if output_line == "":
+            print "returned empty line"
+            # continue
+        else:
+            output_line += "\n"
+            output_file.write(output_line)
+        print "\n"
     
     in_file.close()
-    out_file.close()
+    output_file.close()
 
 if __name__ == '__main__':
     main()
